@@ -448,6 +448,17 @@ page 6928 "Expense Reports API"
     end;
 
     [ServiceEnabled]
+    procedure AssignInterimApprover(var ActionContext: WebServiceActionContext; InterimApproverExpenseUserNo: Code[20]; ActorExpenseUserNo: Code[20])
+    begin
+        Rec.AssignInterimApprover(InterimApproverExpenseUserNo, ActorExpenseUserNo);
+
+        ActionContext.SetObjectType(ObjectType::Page);
+        ActionContext.SetObjectId(Page::"Expense Reports API");
+        ActionContext.AddEntityKey(Rec.FieldNo(SystemId), Rec.SystemId);
+        ActionContext.SetResultCode(WebServiceActionResultCode::Updated);
+    end;
+
+    [ServiceEnabled]
     procedure AddExpenseToReport(var ActionContext: WebServiceActionContext; ExpenseId: Guid)
     var
         Expense: Record Expense;

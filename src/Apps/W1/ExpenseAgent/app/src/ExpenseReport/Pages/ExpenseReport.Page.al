@@ -436,6 +436,18 @@ page 6910 "Expense Report"
                         ReopenSubmittedExpenseReport();
                     end;
                 }
+                action("Assign Interim Approver")
+                {
+                    ApplicationArea = Jobs;
+                    Caption = 'Assign Interim Approver';
+                    Image = UserSetup;
+                    ToolTip = 'Reassign the pending approval to an interim approver from the available approvers list.';
+
+                    trigger OnAction()
+                    begin
+                        AssignInterimApproverFromLookup();
+                    end;
+                }
             }
         }
         area(Navigation)
@@ -754,6 +766,24 @@ page 6910 "Expense Report"
     begin
         if ExpenseReportApprovalMgt.ConfirmAction(RefActionType::"Reopen Submitted") then
             Process(RefActionType::"Reopen Submitted");
+    end;
+
+    local procedure AssignInterimApproverFromLookup()
+    var
+        Approvers: Record "Expense User";
+        ExpenseUsersPage: Page "Expense Users";
+    begin
+        Approvers.SetRange("Can Approve", true);
+        Approvers.SetFilter("No.", '<>%1', Rec."Expense User No.");
+
+        ExpenseUsersPage.LookupMode(true);
+        ExpenseUsersPage.SetTableView(Approvers);
+        if ExpenseUsersPage.RunModal() <> Action::LookupOK then
+            exit;
+
+        ExpenseUsersPage.GetRecord(Approvers);
+        Rec.AssignInterimApprover(Approvers."No.");
+        CurrPage.Update(false);
     end;
 
     local procedure ProcessApprovalAction(ActionType: Enum "Expense Approval Action")

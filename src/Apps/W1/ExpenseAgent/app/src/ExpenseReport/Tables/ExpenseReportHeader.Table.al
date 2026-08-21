@@ -616,6 +616,10 @@ table 6906 "Expense Report Header"
         CannotChangeExpenseUserErr: Label 'You cannot change %1 in Expense Report No. %2 as there are associated lines to it.', Comment = '%1 = Field Caption, %2 = Expense Report No.';
         ExpenseUserMustBeLinkedToAnEmployeeErr: Label 'Expense User %1 must be linked to an Employee No.', Comment = '%1 - Expense User No.';
         ExpenseUserNotTravelerErr: Label 'Expense User %1 is not a traveler on Spend Request %2.', Comment = '%1 = Expense User No., %2 = Spend Request No.';
+        InterimApproverStatusErr: Label 'You can only assign an interim approver while the expense report is Released or Pending Approval.';
+        InterimApproverRequiredErr: Label 'Select an interim approver from the available approvers.';
+        InterimApproverCannotBeSubmitterErr: Label 'The interim approver cannot be the same as the expense user %1.', Comment = '%1 = Expense User No.';
+        InterimApproverAssignedCommentTxt: Label 'Interim approver set to %1 (%2).', Comment = '%1 = Approver Expense User No., %2 = Approver Name';
 
     procedure AssistEdit() Result: Boolean
     begin
@@ -1135,6 +1139,54 @@ table 6906 "Expense Report Header"
     procedure UpdateApproverID()
     begin
         GetApproverId(Rec."Approver Expense User No.", Rec."Approver Expense User ID");
+    end;
+
+    /// <summary>
+    /// Reassigns the current approver to the given expense user (interim approver) and logs an activity entry.
+    /// </summary>
+    procedure AssignInterimApprover(NewApproverExpenseUserNo: Code[20])
+    begin
+        AssignInterimApprover(NewApproverExpenseUserNo, '');
+    end;
+
+    internal procedure AssignInterimApprover(NewApproverExpenseUserNo: Code[20]; ActorExpenseUserNo: Code[20])
+    var
+        InterimApprover: Record "Expense User";
+        ExpenseActivityLogMgt: Codeunit "Expense Activity Log Mgt.";
+        LogComment: Text;
+    begin
+        if Rec.Status <> Rec.Status::"Pending Approval" then
+            Error(InterimApproverStatusErr);
+
+        if NewApproverExpenseUserNo = '' then
+            Error(InterimApproverRequiredErr);
+
+        if NewApproverExpenseUserNo = Rec."Expense User No." then
+            Error(InterimApproverCannotBeSubmitterErr, Rec."Expense User No.");
+
+        InterimApprover.Get(NewApproverExpenseUserNo);
+        InterimApprover.TestField("Can Approve", true);
+        InterimApprover.TestField("User Id For Approvals");
+
+        Rec."Approver Expense User No." := InterimApprover."No.";
+        Rec."Approver Expense User ID" := InterimApprover."User Id For Approvals";
+        Rec.Modify(true);
+
+        LogComment := StrSubstNo(InterimApproverAssignedCommentTxt, InterimApprover."No.", InterimApprover.Name);
+        if ActorExpenseUserNo <> '' then
+            ExpenseActivityLogMgt.LogExpenseReportEvent(
+                Rec,
+                Enum::"Expense Activity Event Type"::InterimApproverAssigned,
+                Enum::"Expense Activity Initiator"::User,
+                Enum::"Expense Activity Actor Role"::Submitter,
+                ActorExpenseUserNo,
+                LogComment)
+        else
+            ExpenseActivityLogMgt.LogExpenseReportEventByBCUser(
+                Rec,
+                Enum::"Expense Activity Event Type"::InterimApproverAssigned,
+                Enum::"Expense Activity Actor Role"::Submitter,
+                LogComment);
     end;
 
     local procedure GetApproverId(var ApproverExpenseUserNo: Code[20]; var ApproverExpenseUserID: Code[50])
